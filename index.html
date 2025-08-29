@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AWS CloudFront Setup</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 p-4 sm:p-8">
+    <div class="max-w-4xl mx-auto bg-white shadow-xl rounded-2xl overflow-hidden p-6 sm:p-10">
+        <header class="text-center mb-10">
+            <h1 class="text-3xl sm:text-4xl font-bold text-gray-800 mb-2">How to Securely Serve Static Content with AWS CloudFront and S3</h1>
+            <p class="text-gray-500 text-lg">A step-by-step guide to setting up a secure and efficient content delivery network.</p>
+        </header>
+
+        <!-- Dataflow Diagram Section -->
+        <section class="mb-10 p-6 bg-gray-50 rounded-lg border border-gray-200">
+            <h2 class="text-2xl font-semibold text-gray-700 mb-4">Dataflow Map</h2>
+            <p class="text-gray-600 mb-4">
+                This diagram illustrates the secure data flow from a user's browser to your private S3 bucket, facilitated by CloudFront.
+            </p>
+            <div class="bg-white p-6 rounded-lg shadow-inner border border-dashed border-gray-300">
+                <div class="flex flex-col items-center justify-center space-y-4 text-sm font-mono text-gray-800">
+                    <div class="flex items-center space-x-2">
+                        <span class="p-2 bg-blue-200 rounded-md">User Browser</span>
+                        <span class="text-xl">-></span>
+                        <span class="p-2 bg-blue-200 rounded-md">CloudFront Edge Location</span>
+                    </div>
+                    <div class="text-center">
+                        <span class="text-lg">|</span><br>
+                        <span class="text-xs text-gray-500">Cache Check</span>
+                        <br><span class="text-lg">|</span>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        <span class="p-2 bg-green-200 rounded-md">Cache Hit</span>
+                        <span class="text-xl">-></span>
+                        <span class="p-2 bg-green-200 rounded-md">Content Served to User</span>
+                    </div>
+                    <div class="text-center">
+                        <span class="text-xs text-gray-500">OR</span>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        <span class="p-2 bg-red-200 rounded-md">Cache Miss</span>
+                        <span class="text-xl">-></span>
+                        <span class="p-2 bg-red-200 rounded-md">CloudFront Origin Request</span>
+                    </div>
+                    <div class="text-center">
+                        <span class="text-lg">|</span><br>
+                        <span class="text-xs text-gray-500">Uses OAC to access private S3 bucket</span>
+                        <br><span class="text-lg">|</span>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        <span class="p-2 bg-yellow-200 rounded-md">S3 Bucket</span>
+                        <span class="text-xl">-></span>
+                        <span class="p-2 bg-yellow-200 rounded-md">Content Returned to CloudFront</span>
+                    </div>
+                    <div class="text-center">
+                        <span class="text-lg">|</span><br>
+                        <span class="text-xs text-gray-500">CloudFront Caches Content</span>
+                        <br><span class="text-lg">|</span>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        <span class="p-2 bg-blue-200 rounded-md">Content Served from Cache to User</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <main>
+            <!-- Step 1 -->
+            <section class="mb-10 p-6 bg-gray-50 rounded-lg border border-gray-200">
+                <h2 class="text-2xl font-semibold text-gray-700 mb-4">Step 1: Prepare Your S3 Bucket</h2>
+                <p class="text-gray-600 mb-4">The first step is to have an S3 bucket with the content you want to distribute.</p>
+                <ol class="list-decimal list-inside space-y-3 text-gray-600">
+                    <li>**Create an S3 Bucket:** Go to the AWS Management Console, navigate to the S3 service, and create a new bucket. Choose a globally unique name.</li>
+                    <li>**Upload Content:** Upload all the static content (HTML, CSS, JavaScript files, images, etc.) that you want to serve through CloudFront.</li>
+                    <li>**Configure Access:** Ensure that **"Block all public access"** is enabled for the bucket. This is a critical security measure. CloudFront will be granted access later, but the bucket itself will remain private.</li>
+                </ol>
+            </section>
+
+            <!-- Step 2 -->
+            <section class="mb-10 p-6 bg-gray-50 rounded-lg border border-gray-200">
+                <h2 class="text-2xl font-semibold text-gray-700 mb-4">Step 2: Create an Origin Access Control (OAC)</h2>
+                <p class="text-gray-600 mb-4">An OAC is a recommended feature that securely connects your CloudFront distribution to your S3 bucket.</p>
+                <ol class="list-decimal list-inside space-y-3 text-gray-600">
+                    <li>**Navigate to CloudFront:** In the AWS Management Console, go to the CloudFront service.</li>
+                    <li>**Create an OAC:** In the left-hand navigation pane, under **Security**, select **Origin access**. Click **Create control setting**.</li>
+                    <li>**Configure OAC:**
+                        <ul class="list-disc list-inside ml-6 space-y-1 text-gray-500">
+                            <li>**Name:** Provide a descriptive name for your OAC (e.g., `my-s3-bucket-oac`).</li>
+                            <li>**Origin type:** Select **S3**.</li>
+                            <li>Click **Create**.</li>
+                        </ul>
+                    </li>
+                    <li>**Copy the Policy:** After the OAC is created, CloudFront will display a bucket policy. **Copy this policy** to your clipboard. This policy grants CloudFront permission to read files from your private S3 bucket.</li>
+                </ol>
+            </section>
+
+            <!-- Step 3 -->
+            <section class="mb-10 p-6 bg-gray-50 rounded-lg border border-gray-200">
+                <h2 class="text-2xl font-semibold text-gray-700 mb-4">Step 3: Create the CloudFront Distribution</h2>
+                <p class="text-gray-600 mb-4">This is where you define how CloudFront will serve your content.</p>
+                <ol class="list-decimal list-inside space-y-3 text-gray-600">
+                    <li>**Start a New Distribution:** In the CloudFront console, select **Distributions** from the left-hand menu, then click **Create distribution**.</li>
+                    <li>**Configure Origin:**
+                        <ul class="list-disc list-inside ml-6 space-y-1 text-gray-500">
+                            <li>**Origin domain:** Select your S3 bucket.</li>
+                            <li>**Name:** The origin ID will be automatically populated.</li>
+                            <li>**Origin access:** Choose **Origin access control settings (recommended)**.</li>
+                            <li>**Origin access control:** Select the OAC you created in the previous step.</li>
+                            <li>**Bucket policy:** CloudFront will prompt you to update the S3 bucket policy. Click **Copy policy** and then **Go to S3 bucket permissions**. Paste the policy into the Bucket policy editor and save.</li>
+                        </ul>
+                    </li>
+                    <li>**Configure Default Cache Behavior:**
+                        <ul class="list-disc list-inside ml-6 space-y-1 text-gray-500">
+                            <li>**Viewer protocol policy:** Select **Redirect HTTP to HTTPS**.</li>
+                            <li>**Allowed HTTP methods:** Select **GET, HEAD**.</li>
+                            <li>**Cache policy:** Choose **CachingOptimized**.</li>
+                        </ul>
+                    </li>
+                    <li>**Configure Other Settings:**
+                        <ul class="list-disc list-inside ml-6 space-y-1 text-gray-500">
+                            <li>**Distribution settings:** You can optionally add a **Default root object** (e.g., `index.html`).</li>
+                            <li>**Price class:** Select the price class that best suits your needs.</li>
+                            <li>**WAF:** You can optionally enable WAF for an extra layer of security.</li>
+                        </ul>
+                    </li>
+                    <li>**Create Distribution:** Click **Create distribution**.</li>
+                </ol>
+            </section>
+
+            <!-- Step 4 -->
+            <section class="mb-10 p-6 bg-gray-50 rounded-lg border border-gray-200">
+                <h2 class="text-2xl font-semibold text-gray-700 mb-4">Step 4: Test Your CloudFront Distribution</h2>
+                <p class="text-gray-600 mb-4">The final step is to test your new distribution to ensure it's working correctly.</p>
+                <ol class="list-decimal list-inside space-y-3 text-gray-600">
+                    <li>**Wait for Deployment:** CloudFront distributions take some time to deploy. The status will show as `Deploying`.</li>
+                    <li>**Get the Domain Name:** Once the status changes to `Deployed`, go back to the list of distributions. Copy the **Distribution domain name**. It will look like `d1234abcd.cloudfront.net`.</li>
+                    <li>**Access Your Content:** Paste this domain name into your browser's address bar. If you configured a default root object, you'll see your website. Otherwise, append the path to one of your files (e.g., `d1234abcd.cloudfront.net/your-image.jpg`).</li>
+                </ol>
+            </section>
+        </main>
+    </div>
+</body>
+</html>
